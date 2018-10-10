@@ -133,7 +133,7 @@ async def admin(message_object, parsed_args):
     author_mention = message_object.author.mention
     channel_mention = message_object.channel.mention
     destination_id = message_object.server.id
-    destination = servers[destination_id]
+    destination = servers[destination_id]["admin_channel"]
     if len(parsed_args.message) >= 1:
         message_content = f"{author_mention} in {channel_mention} said: "
         for message_piece in parsed_args.message:
