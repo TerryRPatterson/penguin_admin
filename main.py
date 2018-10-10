@@ -4,12 +4,13 @@
 
 import argparse
 import asyncio
+from collections import namedtuple
 from shlex import split
 
 import discord
 from api_secrets import bot_token
 
-client = discord.Client()
+bot = discord.Client()
 
 prefix = "~"
 
@@ -36,13 +37,13 @@ class ArgumentParser(argparse.ArgumentParser):
         return self._print_message(self.format_help(), file)
 
 
-@client.event
+@bot.event
 async def on_ready():
-    """Handle client first connect."""
+    """Handle bot first connect."""
     print("Logged in as")
-    print(client.user.name)
+    print(bot.user.name)
     print("------")
-    for server in client.servers:
+    for server in bot.servers:
         id = server.id
         servers[id] = {
             "admin_channel": None,
@@ -62,13 +63,13 @@ async def on_ready():
 async def count(message, parsed_args):
     """Test bot functionality."""
     counter = 0
-    tmp = await client.send_message(message.channel,
-                                    "Calculating messages...")
-    async for log in client.logs_from(message.channel, limit=100):
+    tmp = await bot.send_message(message.channel,
+                                 "Calculating messages...")
+    async for log in bot.logs_from(message.channel, limit=100):
         if log.author == message.author:
             counter += 1
 
-    await client.edit_message(tmp, "You have {} messages.".format(counter))
+    await bot.edit_message(tmp, "You have {} messages.".format(counter))
 
 
 async def sleep(message, parsed_args):
@@ -79,50 +80,50 @@ async def sleep(message, parsed_args):
         time = 5
 
     await asyncio.sleep(time)
-    await client.send_message(message.channel, "Done sleeping")
+    await bot.send_message(message.channel, "Done sleeping")
 
 
 async def summon(message, parsed_args):
     """Create a mirrored channel pair."""
+    private_channel_tuple = namedtuple("private_channel_pair",
+                                       ["user_channel", "admin_channel"])
+
     server = message.server
     everyone_role = server.default_role
     server_id = server.id
     admin_role = servers[server_id]["admin_role"]
     author = message.author
-    channel_name = f"{author.name} talking to admins."
+    channel_name = f"{author.name}-Talking to admins"
+    channel_name_admin = channel_name + "-Admin only side"
 
-    everyone_perms = discord.PermissionOverwrite(read_messages=False)
+    denied_perms = discord.PermissionOverwrite(read_messages=False)
     allowed_perms = discord.PermissionOverwrite(read_messages=True)
 
     everyone = discord.ChannelPermissions(target=everyone_role,
-                                          overwrite=everyone_perms)
+                                          overwrite=denied_perms)
     admin = discord.ChannelPermissions(target=admin_role,
                                        overwrite=allowed_perms)
+    admin_no = discord.ChannelPermissions(target=admin_role,
+                                          overwrite=denied_perms)
     user = discord.ChannelPermissions(target=author,
                                       overwrite=allowed_perms)
+    bot_perms = discord.ChannelPermissions(target=bot.user,
+                                           overwrite=denied_perms)
 
-    new_channel = await client.create_channel(server, channel_name, everyone,
-                                              admin, user)
-    servers[server_id]["created_channels"].append(new_channel)
-    await client.delete_message(message)
-    creation_content = f"{author.mention} {admin_role.mention}"
-    await client.send_message(new_channel, creation_content)
+    new_user_channel = await bot.create_channel(server, channel_name,
+                                                everyone, admin_no, user,
+                                                bot_perms)
+    new_admin_channel = await bot.create_channel(server, channel_name_admin,
+                                                 everyone, admin, bot_perms)
+    new_channels = private_channel_tuple(new_user_channel, new_admin_channel)
+    servers[server_id]["created_channels"].append(new_channels)
+    await bot.delete_message(message)
+    user_message = f"{author.mention} you can talk to the admins here."
+    admin_message = (f"{author.mention} has opened a private channel with the "
+                     "admins")
+    await bot.send_message(new_user_channel, user_message)
+    await bot.send_message(new_admin_channel, admin_message)
     return True
-
-
-async def resolve(message, parsed_args):
-    """Resolve an issue channel."""
-    server_id = message.server.id
-    channel = message.channel
-    author = message.author
-
-    if channel in servers[server_id]["created_channels"]:
-        if author.permissions_in(channel).administrator:
-            await client.delete_channel(channel)
-        else:
-            failure_message = (f"{author.mention} you do not have permission "
-                               "to close the channel.")
-            await client.send_message(channel, failure_message)
 
 
 async def admin(message_object, parsed_args):
@@ -138,8 +139,8 @@ async def admin(message_object, parsed_args):
     else:
         message_content = (f"{author_mention} mentioned admins in "
                            f"{channel_mention}")
-    await client.send_message(destination, message_content)
-    await client.delete_message(message_object)
+    await bot.send_message(destination, message_content)
+    await bot.delete_message(message_object)
 
 
 commands = {
@@ -147,7 +148,6 @@ commands = {
     "sleep": sleep,
     "admin": admin,
     "summon": summon,
-    "resolve": resolve
 }
 
 
@@ -163,8 +163,6 @@ def create_parser():
 
     summon_parser = sub_parsers.add_parser("summon")
 
-    resolve_parser = sub_parsers.add_parser("resolve")
-
     sleep_parser.add_argument("time", help="The time the bot should sleep.",
                               nargs="?",  type=int)
 
@@ -175,21 +173,50 @@ def create_parser():
     return parser
 
 
-@client.event
+async def check_controlled_channels(message):
+    """Check if a message is in a controlled channel."""
+    channel = message.channel
+    id = message.server.id
+    found = False
+    for private_channel_pair in servers[id]["created_channels"]:
+        user_channel = private_channel_pair.user_channel
+        admin_channel = private_channel_pair.admin_channel
+        if channel.id == user_channel.id:
+            author = message.author.mention
+            mirror_message = f"{author}: {message.content}"
+            await bot.send_message(admin_channel, mirror_message)
+            found = True
+        if channel.id == admin_channel.id:
+            if message.content.startswith(prefix):
+                message_no_prefix = message.content.lstrip(prefix)
+                if message_no_prefix.startswith("resolve"):
+                    await bot.delete_channel(user_channel)
+                    await bot.delete_channel(admin_channel)
+                else:
+                    admin_message = f"Admins: {message_no_prefix}"
+                    await bot.send_message(user_channel, admin_message)
+            found = True
+    return found
+
+
+@bot.event
 async def on_message(message):
     """Handle messages."""
-    if message.content.startswith(prefix):
-        try:
-            message_no_prefix = message.content.lstrip(prefix)
-            message_seperated = split(message_no_prefix)
-            list_arguments = list(message_seperated)
-            parser = create_parser()
-            parsed_args = parser.parse_args(args=list_arguments)
-            command = parsed_args.command
-            await commands[command](message, parsed_args)
-        except SyntaxError as error_message:
-            user = message.author
-            await client.send_message(user, error_message)
+    if not message.author == bot.user:
+        controlled_message = await check_controlled_channels(message)
+        if message.content.startswith(prefix):
+            try:
+                message_no_prefix = message.content.lstrip(prefix)
+                message_seperated = split(message_no_prefix)
+                list_arguments = list(message_seperated)
+                if not controlled_message:
+                    parser = create_parser()
+                    parsed_args = parser.parse_args(args=list_arguments)
+                    command = parsed_args.command
+                    await commands[command](message, parsed_args)
+            except SyntaxError as error_message:
+                user = message.author
+                await bot.send_message(user, error_message)
 
 
-client.run(bot_token)
+bot.run(bot_token)
