@@ -232,6 +232,6 @@ async def get(request):
     with open("./index.html") as index_file:
         index_file_data = index_file.read()
         return web.Response(body=index_file_data)
-
-app.add_routes([web.get('/', get)])
+print(app)
+app.router.add_get('/', get)
 bot.run(bot_token)
