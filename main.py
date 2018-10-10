@@ -174,7 +174,6 @@ async def on_message(message):
         except SyntaxError as error_message:
             user = message.author
             await client.send_message(user, error_message)
-            await client.delete_message(message)
 
 
 client.run(bot_token)
