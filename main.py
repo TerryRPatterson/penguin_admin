@@ -4,13 +4,15 @@
 
 import argparse
 import asyncio
+from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
 from collections import namedtuple
 from shlex import split
 from sys import argv
+
 import discord
 
-
 bot_token = argv[1]
+server_port = argv[2]
 
 bot = discord.Client()
 
@@ -222,3 +224,23 @@ async def on_message(message):
 
 
 bot.run(bot_token)
+
+
+class myHandler(BaseHTTPRequestHandler):
+    """Static file server."""
+
+    def do_GET(self):
+        """Handle incoming get requests."""
+        self.send_response(200)
+        self.send_header("Content-type", "text/html")
+        self.end_headers()
+        # Send the html message
+        with open("./index.html") as index_file:
+            self.wfile.write(index_file.read())
+        return
+
+
+server = HTTPServer(("", server_port), myHandler)
+
+print("Started httpserver on port", server_port)
+server.serve_forever()
