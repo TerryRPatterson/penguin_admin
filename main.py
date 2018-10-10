@@ -6,9 +6,11 @@ import argparse
 import asyncio
 from collections import namedtuple
 from shlex import split
-
+from sys import argv
 import discord
-from api_secrets import bot_token
+
+
+bot_token = argv[1]
 
 bot = discord.Client()
 
