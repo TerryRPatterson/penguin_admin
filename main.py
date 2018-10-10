@@ -13,13 +13,14 @@ client = discord.Client()
 
 prefix = "~"
 
-admin_channels = {}
-admin_roles = {}
-created_channels = {}
+servers = {}
 
 
 class ArgumentParser(argparse.ArgumentParser):
+    """Argument Parser override to allow for help handling."""
+
     def error(self, message):
+        """Handle bad arguments."""
         help_message = self.print_help()
         help_message += f"{self.prog}: error: {message}\n"
         raise SyntaxError(help_message)
@@ -31,7 +32,9 @@ class ArgumentParser(argparse.ArgumentParser):
             file.write(message)
 
     def print_help(self, file=None):
+        """Return help for the parser."""
         return self._print_message(self.format_help(), file)
+
 
 @client.event
 async def on_ready():
@@ -41,13 +44,19 @@ async def on_ready():
     print("------")
     for server in client.servers:
         id = server.id
-        created_channels[id] = []
+        servers[id] = {
+            "admin_channel": None,
+            "admin_role": None,
+            "created_channels": []
+        }
         for channel in server.channels:
             if channel.name == "admins":
-                admin_channels[id] = channel
+                servers[id]["admin_channels"] = channel
+
         for role in server.roles:
-            if role.name == "admins":
-                admin_roles[id] = role
+            if role.permissions.administrator and not role.managed:
+                print(role.name)
+                servers[id]["admin_role"] = role
 
 
 async def count(message, parsed_args):
@@ -78,7 +87,7 @@ async def summon(message, parsed_args):
     server = message.server
     everyone_role = server.default_role
     server_id = server.id
-    admin_role = admin_roles[server_id]
+    admin_role = servers[server_id]["admin_role"]
     author = message.author
     channel_name = f"{author.name} talking to admins."
 
@@ -94,7 +103,7 @@ async def summon(message, parsed_args):
 
     new_channel = await client.create_channel(server, channel_name, everyone,
                                               admin, user)
-    created_channels[server_id].append(new_channel)
+    servers[server_id]["created_channels"].append(new_channel)
     await client.delete_message(message)
     creation_content = f"{author.mention} {admin_role.mention}"
     await client.send_message(new_channel, creation_content)
@@ -105,9 +114,15 @@ async def resolve(message, parsed_args):
     """Resolve an issue channel."""
     server_id = message.server.id
     channel = message.channel
+    author = message.author
 
-    if channel in created_channels[server_id]:
-        await client.delete_channel(channel)
+    if channel in servers[server_id]["created_channels"]:
+        if author.permissions_in(channel).administrator:
+            await client.delete_channel(channel)
+        else:
+            failure_message = (f"{author.mention} you do not have permission "
+                               "to close the channel.")
+            await client.send_message(channel, failure_message)
 
 
 async def admin(message_object, parsed_args):
@@ -115,7 +130,7 @@ async def admin(message_object, parsed_args):
     author_mention = message_object.author.mention
     channel_mention = message_object.channel.mention
     destination_id = message_object.server.id
-    destination = admin_channels[destination_id]
+    destination = servers[destination_id]
     if len(parsed_args.message) >= 1:
         message_content = f"{author_mention} in {channel_mention} said: "
         for message_piece in parsed_args.message:
@@ -124,6 +139,7 @@ async def admin(message_object, parsed_args):
         message_content = (f"{author_mention} mentioned admins in "
                            f"{channel_mention}")
     await client.send_message(destination, message_content)
+    await client.delete_message(message_object)
 
 
 commands = {
