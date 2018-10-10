@@ -225,9 +225,6 @@ async def on_message(message):
                 await bot.send_message(user, error_message)
 
 
-bot.run(bot_token)
-
-
 class myHandler(BaseHTTPRequestHandler):
     """Static file server."""
 
@@ -246,3 +243,5 @@ server = HTTPServer(("", server_port), myHandler)
 
 print("Started httpserver on port", server_port)
 server.serve_forever()
+
+bot.run(bot_token)
