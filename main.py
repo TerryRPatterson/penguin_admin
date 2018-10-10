@@ -4,7 +4,7 @@
 
 import argparse
 import asyncio
-from BaseHTTPServer import BaseHTTPRequestHandler, HTTPServer
+from http.server import BaseHTTPRequestHandler, HTTPServer
 from collections import namedtuple
 from shlex import split
 from sys import argv
