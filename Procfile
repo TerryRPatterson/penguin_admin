@@ -1,1 +1,1 @@
-web: ./main.py $bot_token $PORT
+worker: ./main.py $bot_token

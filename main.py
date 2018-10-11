@@ -9,10 +9,8 @@ from shlex import split
 from sys import argv
 
 import discord
-from aiohttp import web
 
 bot_token = argv[1]
-server_port = argv[2]
 
 bot = discord.Client()
 
@@ -224,14 +222,4 @@ async def on_message(message):
                 user = message.author
                 await bot.send_message(user, error_message)
 
-app = web.Application(loop=bot.loop, port=server_port)
-
-
-async def get(request):
-    """Handle get request."""
-    with open("./index.html") as index_file:
-        index_file_data = index_file.read()
-        return web.Response(body=index_file_data)
-
-app.router.add_get('/', get)
 bot.run(bot_token)
