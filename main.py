@@ -7,8 +7,8 @@ import asyncio
 from collections import namedtuple
 from shlex import split
 from sys import argv
-import discord
 
+import discord
 
 bot_token = argv[1]
 
@@ -54,11 +54,10 @@ async def on_ready():
         }
         for channel in server.channels:
             if channel.name == "admins":
-                servers[id]["admin_channels"] = channel
+                servers[id]["admin_channel"] = channel
 
         for role in server.roles:
             if role.permissions.administrator and not role.managed:
-                print(role.name)
                 servers[id]["admin_role"] = role
 
 
@@ -133,7 +132,7 @@ async def admin(message_object, parsed_args):
     author_mention = message_object.author.mention
     channel_mention = message_object.channel.mention
     destination_id = message_object.server.id
-    destination = servers[destination_id]
+    destination = servers[destination_id]["admin_channel"]
     if len(parsed_args.message) >= 1:
         message_content = f"{author_mention} in {channel_mention} said: "
         for message_piece in parsed_args.message:
@@ -219,6 +218,5 @@ async def on_message(message):
             except SyntaxError as error_message:
                 user = message.author
                 await bot.send_message(user, error_message)
-
 
 bot.run(bot_token)

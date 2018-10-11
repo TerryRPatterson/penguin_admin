@@ -1,1 +1,1 @@
-web: ./main.py $bot_token
+worker: ./main.py $bot_token
