@@ -58,7 +58,6 @@ async def on_ready():
 
         for role in server.roles:
             if role.permissions.administrator and not role.managed:
-                print(role.name)
                 servers[id]["admin_role"] = role
 
 
@@ -133,9 +132,7 @@ async def admin(message_object, parsed_args):
     author_mention = message_object.author.mention
     channel_mention = message_object.channel.mention
     destination_id = message_object.server.id
-    print(destination_id)
     destination = servers[destination_id]["admin_channel"]
-    print(destination)
     if len(parsed_args.message) >= 1:
         message_content = f"{author_mention} in {channel_mention} said: "
         for message_piece in parsed_args.message:
