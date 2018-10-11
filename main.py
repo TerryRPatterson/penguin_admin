@@ -224,7 +224,7 @@ async def on_message(message):
                 user = message.author
                 await bot.send_message(user, error_message)
 
-app = web.Application(loop=bot.loop)
+app = web.Application(loop=bot.loop, port=server_port)
 
 
 async def get(request):
@@ -232,6 +232,6 @@ async def get(request):
     with open("./index.html") as index_file:
         index_file_data = index_file.read()
         return web.Response(body=index_file_data)
-print(app)
+
 app.router.add_get('/', get)
 bot.run(bot_token)
